@@ -1,0 +1,25 @@
+---
+title: "Predicting mortality caused by heart failure"
+author: "Anton Ivanov"
+date: "`r format(Sys.Date())`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 Introduction
+
+In this project we will train a model to predict mortality caused by heart failure (HF) based on patients features. Acute heart failure is a leading cause of hospitalization and death, and it is an increasing burden on health care systems. The correct risk stratification of patients could improve clinical outcome and resources allocation, avoiding the overtreatment of low-risk subjects or the early, inappropriate discharge of high-risk patients.^[World J Cardiol. 2015 Dec 26; 7(12): 902–911.]
+
+Heart failure occurs when the heart becomes too weak or stiff to pump enough blood to meet the body’s needs. Symptoms typically include breathlessness, extreme fatigue, reduced capacity to exercise, etc. The number of people living with HF is high and growing. More than 15 million people (~ 2%) are estimated to be living with HF in Europe. People living with HF are at high risk of hospitalisation, despite improvements in treatment options and care in the past two decades, mortality from HF remains high.^[Heart Failure Policy Network. 2020. Heart failure policy and practice in Europe. London: HFPN]
+
+The used dataset contains medical records of 299 patients suffering from heart failure, collected during their follow-up period. Each patient profile includes 11 clinical features including blood measurements, health indicators and other relevant information. The dataset can be downloaded from the [UCI Machine Learning Repository] (https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records).
+
+The goal of this project is to develop a machine learning model that will provide the best prediction of the patients death based on the available information. *caret* package will be used for training and assessing the models. Model performance will be evaluated using a metric most appropriate for the current data.
+
+
+# 2 Data exploration
+
+
