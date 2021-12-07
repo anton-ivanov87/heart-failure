@@ -5,6 +5,8 @@
 library(tidyverse)
 library(caret)
 library(psych)
+library(reshape2)
+library(gridExtra)
 
 # Dataset available from:
 # Heart failure clinical records. (2020). UCI Machine Learning Repository.
@@ -19,6 +21,7 @@ data <- read.csv("heart_failure_clinical_records_dataset.csv")
 # Time column will not be considered for the prediction since this information
 # will not be available for real patients
 data <- select(data, -time)
+data_num <- data
 
 # Binary variables are converted to factors, numeric variables are scaled
 factors <- c(2, 4, 6, 10, 11, 12)
@@ -40,7 +43,7 @@ test <- data_sc[-train_index,]
 # is almost identical
 prop.table(table(train$DEATH_EVENT))
 prop.table(table(test$DEATH_EVENT))
-
+prop.table(table(train$sex))
 
 ###################################
 # Data exploration of the train set
@@ -49,14 +52,24 @@ prop.table(table(test$DEATH_EVENT))
 str(train_not_sc)
 
 # Distribution and correlations of all features
-pairs.panels(train_not_sc)
+pairs.panels(train)
+
+train_num <- data_num[train_index,]
+cormat <- round(cor(train_num),2)
+melted_cormat <- melt(cormat)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+  labs(x = NULL, y = NULL, fill = "Pearson's\nCorrelation") +
+  scale_fill_gradient2(mid="#FBFEF9",low="#0C6291",high="#A63446", limits=c(-0.5,0.5)) +
+  scale_x_discrete(guide = guide_axis(angle = 30))
 
 # Age
 train_not_sc %>%
   ggplot(aes(age, fill = DEATH_EVENT)) +
   theme_gray() +
-  geom_histogram(aes(y = ..density../3)) +
+  geom_histogram(aes(y = ..density../3), bins = 20) +
   geom_density(alpha = 0.2)
+  
 
 train_not_sc %>%
   ggplot(aes(x = DEATH_EVENT, y = age)) +
@@ -118,11 +131,6 @@ train_not_sc %>%
   geom_density(alpha = 0.2) +
   scale_x_log10()
 
-train_not_sc %>%
-  ggplot(aes(serum_creatinine, creatinine_phosphokinase, colour = DEATH_EVENT)) +
-  geom_point() +
-  scale_x_log10() +
-  scale_y_log10()
 
 # Serum sodium
 
@@ -130,23 +138,28 @@ train_not_sc %>%
   ggplot(aes(serum_sodium, fill = DEATH_EVENT)) +
   theme_gray() +
   geom_histogram(aes(y = ..density../2)) +
-  geom_density(alpha = 0.2) +
-  scale_x_log10()
+  geom_density(alpha = 0.2)
 
 # Sex
 
-train_not_sc %>%
+p1 <- train_not_sc %>%
   ggplot(aes(sex, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+
+p3 <- train_not_sc %>%
+  ggplot(aes(sex, fill = smoking)) +
   theme_gray() +
   geom_bar(position = "fill")
 
 # Smoking
 
-train_not_sc %>%
+p2 <- train_not_sc %>%
   ggplot(aes(smoking, fill = DEATH_EVENT)) +
   theme_gray() +
   geom_bar(position = "fill")
 
+grid.arrange(p1, p2, nrow = 1)
 
 #################
 # Training models
@@ -156,20 +169,30 @@ train_not_sc %>%
 
 methods <- c("nb", "glm", "knn", "svmLinear", "svmRadial", "svmPoly", "rpart", "treebag", "adaboost", "rf", "nnet")
 
+# Accuracy by 'all negative' prediction
+
+pred_neg <- c(1, rep(0, nrow(train) - 1))
+pred_neg <- factor(pred_neg)
+levels(pred_neg) = c("No","Yes")
+cm_neg <- confusionMatrix(pred_neg, train$DEATH_EVENT, mode = "everything", positive = "Yes")
+cm_neg$overall["Accuracy"]
+cm_neg$byClass["F1"]
+
 # Due to class imbalance F1-score will be used to measure model performance
 
 f1 <- function(data, lev = NULL, model = NULL) {
   f1_val <- MLmetrics::F1_Score(y_pred = data$pred,
                                 y_true = data$obs,
-                                positive = lev[1])
+                                # level 2 ("Yes") will be used as positive level
+                                positive = lev[2])
   c(F1 = f1_val)
 }
 
 # 5-fold cross-validation will be used to evaluate the models
 
 fitControl <- trainControl(method = "cv",
-                           number = 5,
-                           p = 0.8,
+                           number = 10,
+                           p = 0.9,
                            classProbs = TRUE,
                            summaryFunction = f1)
 
@@ -185,11 +208,11 @@ calc_model <- function(method, tuneGrid) {
                tuneGrid = tuneGrid)
   # F1-score for the train set will be used to evaluate models prior to evaluation 
   # based on the test set
-  F1_mod <- max(fit$results$F1, na.rm = TRUE)
+  F1_train <- max(fit$results$F1, na.rm = TRUE)
   # For the prediction of the test set metrics F1, Accuracy, Specificity and Kappa
   # will be shown and considered for evaluation
-  pred <- predict(fit, test)
-  cm <- confusionMatrix(pred, test$DEATH_EVENT)
+  pred <- predict(fit, train)
+  cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
   accuracy <- cm$overall["Accuracy"]
   F1 <- cm$byClass["F1"]
   specificity <- cm$byClass["Specificity"]
@@ -198,7 +221,7 @@ calc_model <- function(method, tuneGrid) {
   # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
   results[[1]] <- fit
   results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_model = F1_mod, accuracy = accuracy, F1 = F1, specificity = specificity, kappa = kappa)
+  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy, specificity = specificity, kappa = kappa)
   return(results)
 }
 
@@ -238,11 +261,10 @@ tuneGrids[[11]] <- expand.grid(size = seq(1, 10, 1),
 all_models <- mapply(calc_model, methods, tuneGrids)
 
 # Dataframe containing all methods and metrics is created
-
-df <- bind_rows(all_models[seq(3, 33, 3)], .id = "column_label")
-rownames(df) <- NULL
-df <- df[, -1]
-df
+df2 <- bind_rows(all_models[seq(3, 33, 3)], .id = "column_label")
+rownames(df2) <- NULL
+df2 <- df2[, -1]
+df2
 
 # All models are considered separately
 
@@ -250,66 +272,66 @@ df
 
 plot(all_models[[1]])
 
-all_models[[2]]
+all_models[[2]]$table
 
 #("nb", "glm", "knn", "svmLinear", "svmRadial", "svmPoly", "rpart", "treebag", "adaboost", "rf", "nnet")
 
 # Logistic regression
 
-all_models[[5]]
+all_models[[5]]$table
 
 # K-nearest neighbors
 
 plot(all_models[[7]])
 
-all_models[[8]]
+all_models[[8]]$table
 
 # SVM Linear
 
 plot(all_models[[10]])
 
-all_models[[11]]
+all_models[[11]]$table
 
 
 # SVM Radial
 
 plot(all_models[[13]])
 
-all_models[[14]]
+all_models[[14]]$table
 
 # SVM Polynomial
 
 plot(all_models[[16]])
 
-all_models[[17]]
+all_models[[17]]$table
 
 # Decision tree
 
 plot(all_models[[19]])
 
-all_models[[20]]
+all_models[[20]]$table
 
 # Bagged decision tree
 
-all_models[[23]]
+all_models[[23]]$table
 
 # Boosted decision tree
 
 plot(all_models[[25]])
 
-all_models[[26]]
+all_models[[26]]$table
 
 # Random forest
 
 plot(all_models[[28]])
 
-all_models[[29]]
+all_models[[29]]$table
 
 # ANN
 
 plot(all_models[[31]])
 
-all_models[[32]]
+all_models[[32]]$table
 
 # Tuning parameters are redefined for SVM linear and Random forest
 
@@ -459,3 +481,47 @@ levels(all_voted_test) = c("No", "Yes")
 cm_voted_test <- confusionMatrix(all_voted_test, test$DEATH_EVENT)
 cm_voted_test$byClass["F1"]
 cm_voted_test
+
+
+
+
+
+
+
+
+
+
+
+
+set.seed(3)
+fit_new <- train(DEATH_EVENT ~., # all features will be considered first
+               data = train,
+               method = "nb",
+               metric = "Accuracy",
+               trControl = trainControl(method = "cv",
+                                        number = 5,
+                                        p = 0.8),
+               tuneGrid = expand.grid(fL = seq(0, 5, 1), 
+                                      usekernel = c(TRUE, FALSE), 
+                                      adjust = seq(0, 5, 1)))
+  # F1-score for the train set will be used to evaluate models prior to evaluation 
+  # based on the test set
+Acc_new <- max(fit$results$Accuracy, na.rm = TRUE)
+  # For the prediction of the test set metrics F1, Accuracy, Specificity and Kappa
+  # will be shown and considered for evaluation
+pred_new <- predict(fit_new, train)
+plot(fit_new)
+fit_new$bestTune
+cm_new <- confusionMatrix(pred_new, train$DEATH_EVENT, mode = "everything", positive = "Yes")
+
+cm_new$overall["Accuracy"]
+  accuracy <- cm$overall["Accuracy"]
+  F1 <- cm$byClass["F1"]
+  specificity <- cm$byClass["Specificity"]
+  kappa <- cm$overall["Kappa"]
+  results <- list()
+  # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
+  results[[1]] <- fit
+  results[[2]] <- cm
+  results[[3]] <- data.frame(method = method, F1_model = F1_mod, accuracy = accuracy, F1 = F1, specificity = specificity, kappa = kappa)
+  return(results)

@@ -20,6 +20,363 @@ The used dataset contains medical records of 299 patients suffering from heart f
 The goal of this project is to develop a machine learning model that will provide the best prediction of the patients death based on the available information. *caret* package will be used for training and assessing the models. Model performance will be evaluated using a metric most appropriate for the current data.
 
 
-# 2 Data exploration
+# 2 Analysis and methods
 
+## 2.1 Data preparation
+
+The dataset is available as a CSV file with columns separated by commas. It is saved as a data frame which has the following structure:
+
+```{r raw dataset}
+data <- read.csv("heart_failure_clinical_records_dataset.csv")
+str(data)
+```
+The dataset has no missing values:
+
+```{r na}
+sum(is.na(data))
+```
+For the final dataset used for prediction, the _time_ feature (time in days after the patient was dismissed or died) is not selected since this information will not be available for real patients. Binary variables are converted to factors and numeric variables are scaled to improve the prediction. The outcome values' (death event) levels are converted to "No"/"Yes" as needed for some methods.
+
+```{r factor and scaling, message=FALSE}
+library(tidyverse)
+data <- select(data, -time)
+data_num <- data
+factors <- c(2, 4, 6, 10, 11, 12)
+data[factors] <- lapply(data[factors], factor)
+data_sc <- data
+data_sc[-factors] <- sapply(data[-factors], scale)
+levels(data_sc$DEATH_EVENT) = c("No","Yes")
+```
+
+Based on the resulting dataet, train and test sets are created. It is shown that the both sets have a similar proportion of positive and negative oucomes.
+
+```{r train and test, message=FALSE}
+library(caret)
+set.seed(2)
+train_index <- createDataPartition(data$DEATH_EVENT, p = 0.8, list = FALSE)
+train_not_sc <- train <- data[train_index,]
+train <- data_sc[train_index,]
+test <- data_sc[-train_index,]
+prop.table(table(train$DEATH_EVENT))
+prop.table(table(test$DEATH_EVENT))
+```
+The train set will be used for the following data exploration.
+
+
+## 2.2 Data exploration
+
+The prepared train set contains 6 binary and 5 numeric features and one binary outcome value with 240 observations. The following summary table shows distributions of and correlations between all values and allows a swift examination of the main dependencies.
+
+```{r, echo=FALSE, message=FALSE}
+library(psych)
+pairs.panels(train)
+```
+The following heatmap shows correlations between all values and allows a swift examination of the main dependencies.
+
+```{r heatmap, echo=FALSE, message=FALSE}
+library(reshape2)
+train_num <- data_num[train_index,]
+cormat <- round(cor(train_num),2)
+melted_cormat <- melt(cormat)
+ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) + 
+  geom_tile() +
+  labs(x = NULL, y = NULL, fill = "Pearson's\nCorrelation") +
+  scale_fill_gradient2(mid="#FBFEF9",low="#0C6291",high="#A63446", limits=c(-0.5,0.5)) +
+  scale_x_discrete(guide = guide_axis(angle = 30))
+```
+As can be seen, the outcome is most strongly correlated with age, ejection fraction, serum creatine and serum sodium features. There is no strong correlation between features except between sex and smoking. All features are evaluated in more detail in the following.
+
+### 2.2.1 Age
+
+Higher age is expected to be associated with higher mortality. It can be shown in the following histogram with overlayed density curves. The older patients died more often than the younger.
+
+```{r age histogram, echo=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(age, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_histogram(aes(y = ..density../3), bins = 20) +
+  geom_density(alpha = 0.2)
+```
+
+The following boxplots further confirm the assumption.
+
+```{r age boxplot, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(x = DEATH_EVENT, y = age)) +
+  theme_gray() +
+  geom_boxplot()
+```
+
+### 2.2.2 Anaemia
+
+Patients that die seem to have anaemia more often than patients that are dismissed from hospital, as shown in the following percent stacked barchart. The difference is rather small, as expected based on the correlation heatmap.
+
+```{r anaemia, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(anaemia, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+```
+
+### 2.2.3 Creatinine phosphokinase
+
+Creatinine phosphokinase levels are similar for both patients groups as shown in the following histogram with overlayed density curves.
+
+```{r creatinine, echo=FALSE, message=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(creatinine_phosphokinase, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_histogram(aes(y = ..density../2)) +
+  geom_density(alpha = 0.2) +
+  scale_x_log10()
+```
+
+### 2.2.4 Diabetes
+
+As expected based on the correlation heatmap, there is no evidence that patients sufferiing from diabetes are more likely to die from heart failure than patients without diabetes for the current dataset. This can be seen in the following percent stacked barchart.
+
+```{r diabetes, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(diabetes, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+```
+
+### 2.2.5 Ejection fraction
+
+Ejection fraction strongly correlates with the outcome. It can be shown in the following histogram with overlayed density curves, where the death events density is skewed to the lower ejection fraction values.
+
+```{r ejection, echo=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(ejection_fraction, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_histogram(aes(y = ..density../2), bins = 10) +
+  geom_density(alpha = 0.2)
+```
+
+### 2.2.6 High blood pressure
+
+Patients that die seem to have high blood pressure more often than patients that are dismissed from hospital, as shown in the following percent stacked barchart. The difference is rather small, as expected based on the correlation heatmap.
+
+```{r high blood pressure, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(high_blood_pressure, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+```
+
+### 2.2.7 Platelets
+
+There is no difference in platelets levels for both patient groups, as shown in the following histogram with overlayed density curves.
+
+```{r platelets, echo=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(platelets, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_histogram(aes(y = ..density../2), bins = 10) +
+  geom_density(alpha = 0.2)
+```
+
+### 2.2.8 Serum creatinine and Serum sodium
+
+For serum creatinine and serum sodium considerable correlation was shown in the heatmap. The following histograms with overlayed density curves confirm that higher levels of creatinine in sserum and lower levels of sodium in serum correspond to more often cases of patient mortality.
+
+```{r serum creatinine, echo=FALSE, message=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(serum_creatinine, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_histogram(aes(y = ..density../2)) +
+  geom_density(alpha = 0.2) +
+  scale_x_log10()
+```
+
+```{r serum sodium, echo=FALSE, message=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(serum_sodium, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_histogram(aes(y = ..density../2)) +
+  geom_density(alpha = 0.2)
+```
+
+### 2.2.9 Sex and smoking
+
+Sex and smoking were shown to have a low correlation with patients mortality. As can be seen, there is no significant difference between men and women to die from heart failure, whereas between smoking patients there were more death cases than between non-smoking patients, what can be generally expected.
+
+```{r sex and smoking, echo=FALSE, fig.align = 'center'}
+library(gridExtra)
+p1 <- train_not_sc %>%
+  ggplot(aes(sex, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+
+p2 <- train_not_sc %>%
+  ggplot(aes(smoking, fill = DEATH_EVENT)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+
+grid.arrange(p1, p2, nrow = 1)
+```
+
+Interestingly, there is a high correlation between sex and smoking, as shown in the following plot. Based on it, one might deduce which sex is presented as "0" and which as "1".
+
+```{r sex corr, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
+train_not_sc %>%
+  ggplot(aes(sex, fill = smoking)) +
+  theme_gray() +
+  geom_bar(position = "fill")
+```
+
+### 2.2.10 Findings
+
+
+
+## 2.3 Algorithms
+
+Prediction of patients' mortality (binary outcome) based on several predictors presents a typical classification problem. Machine learning algorithms that will be used in this project are as following:
+
+* Naive Bayes
+* Logistic regression
+* K-nearest neighbors
+* Support vector machine (SVM)
+  + Linear
+  + Radial
+  + Polynomial
+* Decision tree
+* Bagged decision tree
+* Boosted decision tree
+* Random forest
+* Artificial neural network (ANN)
+
+The algorithms were chosen to represent simple as well as more sophisticated methods. Their performance will be compared based on the selected metric. Additionally, an ensemble model considering prediction of all said models will be tried out.
+
+## 2.4 Performance evaluation
+
+As it was shown before, the dataset includes about 70% of negative outcomes and 30% of positive outcomes. This means that the data is imbalanced, and it is not recommended to use the accuracy metric for model evaluation, since it might show relatively high values for obviosuly bad predictions. For example, should all outcomes in the train set be predicted as negative, the accuracy would still be as high as 0.683:
+
+```{r accuracy example}
+pred_neg <- c(1, rep(0, nrow(train) - 1))
+pred_neg <- factor(pred_neg)
+levels(pred_neg) = c("No","Yes")
+cm_neg <- confusionMatrix(pred_neg, train$DEATH_EVENT, mode = "everything", positive = "Yes")
+cm_neg$overall["Accuracy"]
+```
+
+Alternatively, F1-score will be used as suggested by numerous sources (e.g. as summarized in [this article] (https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5)). Death event will be used as a "positive" outcome since it is more important for the prediction --- the cost of the mistake might be patients death. A false positive is less crucial in this sense. For the above example, the F1-score is only 0.0256:
+
+```{r F1-score example}
+cm_neg$byClass["F1"]
+```
+
+10-fold cross-validation will be used for model training. The final model evaluation will be performed with the test set.
+
+# 3 Results
+
+## 3.1 Preparations
+
+*caret* package will be used for model training and evaluation. Since there is no build-in function for training on F1-score, the necessary function is written first. 
+
+```{r F1-score function}
+f1 <- function(data, lev = NULL, model = NULL) {
+  f1_val <- MLmetrics::F1_Score(y_pred = data$pred,
+                                y_true = data$obs,
+                                # level 2 ("Yes") will be used as positive level
+                                positive = lev[2])
+  c(F1 = f1_val)
+}
+```
+
+With the *trainControl* function the training method --- 10-fold cross-validation --- and the metric --- F1-score --- are defined:
+
+```{r trainControl}
+fitControl <- trainControl(method = "cv",
+                           number = 10,
+                           p = 0.9,
+                           classProbs = TRUE,
+                           summaryFunction = f1)
+```
+
+The following function will be used to quickly try several algorithms. It will take a vector of methods to train and a list algorithm parameters and will return a list containing trained models, confusion matrices and a dataframe with selected metrics calculated for the train set (F1-score, accuracy and specificity).
+
+```{r training function}
+calc_model <- function(method, tuneGrid) {
+  set.seed(3)
+  fit <- train(DEATH_EVENT ~., # all features will be considered first
+               data = train,
+               method = method,
+               metric = "F1",
+               trControl = fitControl,
+               tuneGrid = tuneGrid)
+  # F1-score for the train set will be used to evaluate models prior to evaluation 
+  # based on the test set
+  F1_train <- max(fit$results$F1, na.rm = TRUE)
+  # Prediction for the train set
+  pred <- predict(fit, train)
+  cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
+  accuracy <- cm$overall["Accuracy"]
+  F1 <- cm$byClass["F1"]
+  results <- list()
+  # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
+  results[[1]] <- fit
+  results[[2]] <- cm
+  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy)
+  return(results)
+}
+```
+
+The following list includes all tuning parameters for training. Later in the chapter graphical representation of tuning will be used to reassess the choice of parameters.
+
+```{r tune grids}
+tuneGrids <- list()
+
+tuneGrids[[1]] <- expand.grid(fL = seq(0, 5, 1), 
+                              usekernel = c(TRUE, FALSE), 
+                              adjust = seq(0, 5, 1))
+
+tuneGrids[2] <- list(NULL)
+
+tuneGrids[[3]] <- data.frame(k = seq(1, 99, 2))
+
+tuneGrids[[4]] <- data.frame(C = seq(0.5, 10, 0.5))
+
+tuneGrids[5] <- list(NULL)
+
+tuneGrids[6] <- list(NULL)
+
+tuneGrids[[7]] <- data.frame(cp = seq(0, 0.05, len = 10))
+
+tuneGrids[8] <- list(NULL)
+
+tuneGrids[[9]] <- data.frame(nIter = seq(1, 19, 2),
+                            method = "M1")
+
+tuneGrids[[10]] <- data.frame(mtry = seq(1, 11, 1))
+
+tuneGrids[[11]] <- expand.grid(size = seq(1, 10, 1),
+               decay = seq(1, 10, 1))
+```
+
+## 3.2 Model training
+
+The models are trained using the defined parameters and the resulting metrics are saved as a dataframe. The F1-score obtained in the cross-validation is opposed to the F1-score and accuracy calculated using the trained model for the train set. As can be seen, the F1-score values of the cross-validation are lower for all methods, especially for the bagged and boosted classification trees and random forest algorithms, what indicates overtraining. In the following, the trained models will be considered separately.
+
+```{r model training, message=FALSE, warning=FALSE, }
+methods <- c("nb", "glm", "knn", "svmLinear", "svmRadial", "svmPoly", "rpart",
+             "treebag", "adaboost", "rf", "nnet")
+
+# wrapping the function in capture.output prevents printing of train() console messages
+silent <- capture.output(
+  all_models <- mapply(calc_model, methods, tuneGrids))
+
+df <- bind_rows(all_models[seq(3, 33, 3)], .id = "column_label")
+rownames(df) <- NULL
+df <- df[, -1]
+knitr::kable(df)
+```
+### 3.2.3 Naive Bayes
+
+```{r naive bayes}
+plot(all_models[[1]])
+
+all_models[[2]]$table
+```
 
