@@ -333,9 +333,13 @@ plot(all_models[[31]])
 
 all_models[[32]]$table
 
-# Tuning parameters are redefined for SVM linear and Random forest
+# Tuning parameters are redefined for SVM linear, Boosted decision tree and Random forest
 
 tuneGrids[[4]] <- data.frame(C = seq(0.5, 100, 0.5))
+
+tuneGrids[[9]] <- data.frame(nIter = seq(1, 19, 2),
+                             method = "M1")
+
 tuneGrids[[10]] <- data.frame(mtry = seq(1, 20, 1))
 
 all_models <- mapply(calc_model, methods, tuneGrids)
@@ -354,23 +358,28 @@ plot(all_models[[28]])
 calc_model_red <- function(method, tuneGrid) {
   set.seed(3)
   fit <- train(DEATH_EVENT ~ age + anaemia + ejection_fraction + serum_creatinine +
-                 serum_sodium, # only features with correlation >= 0.05 are left
-               data = train,
-               method = method,
-               metric = "F1",
-               trControl = fitControl,
-               tuneGrid = tuneGrid)
-  F1_mod <- max(fit$results$F1, na.rm = TRUE)
-  pred <- predict(fit, test)
-  cm <- confusionMatrix(pred, test$DEATH_EVENT)
+                serum_sodium, # only features with correlation >= 0.05 are left
+                data = train,
+                method = method,
+                metric = "F1",
+                trControl = fitControl,
+                tuneGrid = tuneGrid)
+  # F1-score for the train set will be used to evaluate models prior to evaluation 
+  # based on the test set
+  F1_train <- max(fit$results$F1, na.rm = TRUE)
+  # For the prediction of the test set metrics F1, Accuracy, Specificity and Kappa
+  # will be shown and considered for evaluation
+  pred <- predict(fit, train)
+  cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
   accuracy <- cm$overall["Accuracy"]
   F1 <- cm$byClass["F1"]
   specificity <- cm$byClass["Specificity"]
   kappa <- cm$overall["Kappa"]
   results <- list()
+  # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
   results[[1]] <- fit
   results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_model = F1_mod, accuracy = accuracy, F1 = F1, specificity = specificity, kappa = kappa)
+  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy, specificity = specificity, kappa = kappa)
   return(results)
 }
 
@@ -381,6 +390,11 @@ rownames(df_red) <- NULL
 
 # df_red <- df_red[, c(2, 3)]
 df_red
+
+# Performance of the best model
+svmRadial_pred <- predict(all_models_red[[13]], test)
+svmRadial_cm <- confusionMatrix(svmRadial_pred, test$DEATH_EVENT, mode = "everything", positive = "Yes")
+svmRadial_cm
 
 # 10-fold cross-validation will be used and comapred to the 5-fold c-v
 
@@ -398,7 +412,7 @@ rownames(df_red) <- NULL
 df_red
 
 #############################################################################
-# Ensemble learning: Enswmble of 11 models will be used to improve prediction
+# Ensemble learning: Ensemble of 11 models will be used to improve prediction
 #############################################################################
 
 # Predictions for all models are combined in a dataframe with pred_all function
@@ -426,7 +440,7 @@ all <- ifelse(all == "Yes", 1, 0)
 all_sums <- rowSums(all)
 all_sums
 
-# The function ensemble take a vote threshold needed for a positive or negative vote
+# The function ensemble takes a vote threshold needed for a positive or negative vote
 ensemble <- function(vote) {
   all_voted <- ifelse(all_sums > vote, 1, 0)
   all_voted <- as.factor(all_voted)
@@ -482,46 +496,3 @@ cm_voted_test <- confusionMatrix(all_voted_test, test$DEATH_EVENT)
 cm_voted_test$byClass["F1"]
 cm_voted_test
 
-
-
-
-
-
-
-
-
-
-
-
-set.seed(3)
-fit_new <- train(DEATH_EVENT ~., # all features will be considered first
-               data = train,
-               method = "nb",
-               metric = "Accuracy",
-               trControl = trainControl(method = "cv",
-                                        number = 5,
-                                        p = 0.8),
-               tuneGrid = expand.grid(fL = seq(0, 5, 1), 
-                                      usekernel = c(TRUE, FALSE), 
-                                      adjust = seq(0, 5, 1)))
-  # F1-score for the train set will be used to evaluate models prior to evaluation 
-  # based on the test set
-Acc_new <- max(fit$results$Accuracy, na.rm = TRUE)
-  # For the prediction of the test set metrics F1, Accuracy, Specificity and Kappa
-  # will be shown and considered for evaluation
-pred_new <- predict(fit_new, train)
-plot(fit_new)
-fit_new$bestTune
-cm_new <- confusionMatrix(pred_new, train$DEATH_EVENT, mode = "everything", positive = "Yes")
-
-cm_new$overall["Accuracy"]
-  accuracy <- cm$overall["Accuracy"]
-  F1 <- cm$byClass["F1"]
-  specificity <- cm$byClass["Specificity"]
-  kappa <- cm$overall["Kappa"]
-  results <- list()
-  # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
-  results[[1]] <- fit
-  results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_model = F1_mod, accuracy = accuracy, F1 = F1, specificity = specificity, kappa = kappa)
-  return(results)
