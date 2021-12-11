@@ -429,7 +429,7 @@ all_models_red[[5]]$table
 
 K-nearest neighbors show similar performance to Naive Bayes. Higher number of neighbors seem only to decrease the F1-score.
 
-```{r Logistic regression, fig.width = 5, fig.height = 3, fig.align = 'center'}
+```{r KNN, fig.width = 5, fig.height = 3, fig.align = 'center'}
 all_models_red[[9]]$F1_train
 all_models_red[[8]]$table
 plot(all_models_red[[7]])
@@ -532,7 +532,7 @@ SVM Linear:
 
 Higher cost values indeed resulted in a slight increase of the F1-score.
 
-```{r SVM Linear, fig.width = 5, fig.height = 3, fig.align = 'center'}
+```{r SVM Linear 2, fig.width = 5, fig.height = 3, fig.align = 'center'}
 all_models_red[[12]]$F1_train
 all_models_red[[11]]$table
 plot(all_models_red[[10]])
@@ -541,7 +541,7 @@ Boosted decision tree:
 
 Higher number of trees did not result in performance improvement.
 
-```{r Boosted decision tree, fig.width = 5, fig.height = 3, fig.align = 'center'}
+```{r Boosted decision tree 2, fig.width = 5, fig.height = 3, fig.align = 'center'}
 all_models_red[[27]]$F1_train
 all_models_red[[26]]$table
 plot(all_models_red[[25]])
@@ -550,14 +550,14 @@ Random forest:
 
 A higher number of randomly selected predictors did not result in performance improvement.
 
-```{r Random forest, fig.width = 5, fig.height = 3, fig.align = 'center'}
+```{r Random forest 2, fig.width = 5, fig.height = 3, fig.align = 'center'}
 all_models_red[[30]]$F1_train
 all_models_red[[29]]$table
 plot(all_models_red[[28]])
 ```
 Thus, by changing the parameters' range it was only possible to improve model performance of the SVM Linear model. The final table with the trained models is presented below.
 
-```{r}
+```{r final table}
 df_red <- bind_rows(all_models_red[seq(3, 33, 3)], .id = "column_label")
 rownames(df_red) <- NULL
 df_red <- df_red[, -1]
