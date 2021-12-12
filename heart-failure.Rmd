@@ -11,18 +11,11 @@ options(digits=3)
 ```
 
 ```{r packages, echo=FALSE, message=FALSE, warning=FALSE}
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(psych)) install.packages("psych", repos = "http://cran.us.r-project.org")
-if(!require(reshape2)) install.packages("reshape2", repos = "http://cran.us.r-project.org")
-if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
-if(!require(klaR)) install.packages("klaR")
-if(!require(kernlab)) install.packages("kernlab", repos = "http://cran.us.r-project.org")
-if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
-if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
-if(!require(fastAdaboost)) install.packages("fastAdaboost", repos = "http://cran.us.r-project.org")
-if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
-if(!require(nnet)) install.packages("nnet", repos = "http://cran.us.r-project.org")
+library(tidyverse)
+library(caret)
+library(psych)
+library(reshape2)
+library(gridExtra)
 ```
 
 
