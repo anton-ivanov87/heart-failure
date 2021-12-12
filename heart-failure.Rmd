@@ -7,39 +7,57 @@ output: pdf_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(digits=3)
 ```
+
+```{r packages, echo=FALSE, message=FALSE, warning=FALSE}
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(psych)) install.packages("psych", repos = "http://cran.us.r-project.org")
+if(!require(reshape2)) install.packages("reshape2", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(klaR)) install.packages("klaR")
+if(!require(kernlab)) install.packages("kernlab", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
+if(!require(fastAdaboost)) install.packages("fastAdaboost", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(nnet)) install.packages("nnet", repos = "http://cran.us.r-project.org")
+```
+
 
 # 1 Introduction
 
-In this project we will train a model to predict mortality caused by heart failure (HF) based on patients features. Acute heart failure is a leading cause of hospitalization and death, and it is an increasing burden on health care systems. The correct risk stratification of patients could improve clinical outcome and resources allocation, avoiding the overtreatment of low-risk subjects or the early, inappropriate discharge of high-risk patients.^[World J Cardiol. 2015 Dec 26; 7(12): 902–911.]
+In this project we will train a machine learning model to predict mortality caused by heart failure (HF) based on patients features. Acute heart failure is a leading cause of hospitalization and death, and it is an increasing burden on health care systems. The correct risk stratification of patients could improve clinical outcome and resources allocation, avoiding the overtreatment of low-risk subjects or the early, inappropriate discharge of high-risk patients.^[World J Cardiol. 2015 Dec 26; 7(12): 902–911.]
 
-Heart failure occurs when the heart becomes too weak or stiff to pump enough blood to meet the body’s needs. Symptoms typically include breathlessness, extreme fatigue, reduced capacity to exercise, etc. The number of people living with HF is high and growing. More than 15 million people (~ 2%) are estimated to be living with HF in Europe. People living with HF are at high risk of hospitalisation, despite improvements in treatment options and care in the past two decades, mortality from HF remains high.^[Heart Failure Policy Network. 2020. Heart failure policy and practice in Europe. London: HFPN]
+Heart failure occurs when the heart becomes too weak or stiff to pump enough blood to meet the body’s needs. Symptoms typically include breathlessness, extreme fatigue, reduced capacity to exercise, etc. The number of people living with HF is high and growing. More than 15 million people (~ 2%) are estimated to be living with HF in Europe. People living with HF are at high risk of hospitalisation. Despite improvements in treatment options and care in the past two decades, mortality from HF remains high.^[Heart Failure Policy Network. 2020. Heart failure policy and practice in Europe. London: HFPN] Thus, there is a need for reliable prediction systems for mortality caused by heart failure.
 
-The used dataset contains medical records of 299 patients suffering from heart failure, collected during their follow-up period. Each patient profile includes 11 clinical features including blood measurements, health indicators and other relevant information. The dataset can be downloaded from the [UCI Machine Learning Repository] (https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records).
+The used dataset contains medical records of 299 patients suffering from heart failure, collected during their follow-up period. Each patient profile includes 11 clinical features including blood measurements, health indicators and other relevant information. The data set can be downloaded from the [UCI Machine Learning Repository](https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records).^[https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records]
 
-The goal of this project is to develop a machine learning model that will provide the best prediction of the patients death based on the available information. *caret* package will be used for training and assessing the models. Model performance will be evaluated using a metric most appropriate for the current data.
+The goal of this project is to develop a machine learning model that will provide the best prediction of the patients death based on the available information. *caret* package will be used for training and assessing the models. Model performance will be evaluated using a metric most appropriate for the observed data.
 
 
 # 2 Analysis and methods
 
 ## 2.1 Data preparation
 
-The dataset is available as a CSV file with columns separated by commas. It is saved as a data frame which has the following structure:
+The data set is available as a CSV file with columns separated by commas. It is directly saved as a data frame which doesn't need any cleaning and has the following structure:
 
 ```{r raw dataset}
 data <- read.csv("heart_failure_clinical_records_dataset.csv")
 str(data)
 ```
+
 The dataset has no missing values:
 
 ```{r na}
 sum(is.na(data))
 ```
-For the final dataset used for prediction, the _time_ feature (time in days after the patient was dismissed or died) is not selected since this information will not be available for real patients. Binary variables are converted to factors and numeric variables are scaled to improve the prediction. The outcome values' (death event) levels are converted to "No"/"Yes" as needed for some methods.
+
+For the final dataset used for prediction, the _time_ feature (time in days after start of the observation when the patient was dismissed or died) is not selected since this information will not be available for real patients. Binary variables are converted to factors and numeric variables are scaled to improve the prediction. The outcome values' (death event) levels are converted to "No"/"Yes" as needed for some algorithms.
 
 ```{r factor and scaling, message=FALSE}
-library(tidyverse)
-data <- select(data, -time)
+data <- dplyr::select(data, -time)
 data_num <- data
 factors <- c(2, 4, 6, 10, 11, 12)
 data[factors] <- lapply(data[factors], factor)
@@ -48,10 +66,9 @@ data_sc[-factors] <- sapply(data[-factors], scale)
 levels(data_sc$DEATH_EVENT) = c("No","Yes")
 ```
 
-Based on the resulting dataet, train and test sets are created. It is shown that the both sets have a similar proportion of positive and negative oucomes.
+Based on the resulting data set, train and test sets are created. It is shown that the both sets have a similar proportion of positive and negative outcomes.
 
 ```{r train and test, message=FALSE}
-library(caret)
 set.seed(2)
 train_index <- createDataPartition(data$DEATH_EVENT, p = 0.8, list = FALSE)
 train_not_sc <- train <- data[train_index,]
@@ -60,18 +77,20 @@ test <- data_sc[-train_index,]
 prop.table(table(train$DEATH_EVENT))
 prop.table(table(test$DEATH_EVENT))
 ```
+
 The train set will be used for the following data exploration.
 
 
 ## 2.2 Data exploration
 
-The prepared train set contains 6 binary and 5 numeric features and one binary outcome value with 240 observations. The following summary table shows distributions of and correlations between all values and allows a swift examination of the main dependencies.
+The prepared train set contains 6 binary and 5 numeric features and one binary outcome value with 240 observations. The following summary table shows distributions of and correlations between all values and allows a swift examination of the main relationships.
 
 ```{r, echo=FALSE, message=FALSE}
 library(psych)
 pairs.panels(train)
 ```
-The following heatmap shows correlations between all values and allows a swift examination of the main dependencies.
+
+To simplify visual evaluation of correlations between all values, the following heatmap is used.
 
 ```{r heatmap, echo=FALSE, message=FALSE}
 library(reshape2)
@@ -84,11 +103,12 @@ ggplot(data = melted_cormat, aes(x=Var1, y=Var2, fill=value)) +
   scale_fill_gradient2(mid="#FBFEF9",low="#0C6291",high="#A63446", limits=c(-0.5,0.5)) +
   scale_x_discrete(guide = guide_axis(angle = 30))
 ```
-As can be seen, the outcome is most strongly correlated with age, ejection fraction, serum creatine and serum sodium features. There is no strong correlation between features except between sex and smoking. All features are evaluated in more detail in the following.
+
+As can be seen, the outcome is most strongly correlated with age, ejection fraction, serum creatinine and serum sodium features. There is no strong correlation between features except between sex and smoking. All features are evaluated in more detail in the following.
 
 ### 2.2.1 Age
 
-Higher age is expected to be associated with higher mortality. It can be shown in the following histogram with overlayed density curves. The older patients died more often than the younger.
+Higher age is expected to be associated with higher mortality. This assumption can be confirmed in the following histogram with overlayed density curves. The older patients died more often than the younger.
 
 ```{r age histogram, echo=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
 train_not_sc %>%
@@ -98,7 +118,7 @@ train_not_sc %>%
   geom_density(alpha = 0.2)
 ```
 
-The following boxplots further confirm the assumption.
+The following boxplots further support the assumption.
 
 ```{r age boxplot, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
 train_not_sc %>%
@@ -179,7 +199,7 @@ train_not_sc %>%
 
 ### 2.2.8 Serum creatinine and Serum sodium
 
-For serum creatinine and serum sodium considerable correlation was shown in the heatmap. The following histograms with overlayed density curves confirm that higher levels of creatinine in sserum and lower levels of sodium in serum correspond to more often cases of patient mortality.
+For serum creatinine and serum sodium considerable correlation was shown in the heatmap. The following histograms with overlayed density curves confirm that higher levels of creatinine in serum and lower levels of sodium in serum correspond to more often cases of patient mortality.
 
 ```{r serum creatinine, echo=FALSE, message=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
 train_not_sc %>%
@@ -202,7 +222,7 @@ train_not_sc %>%
 
 Sex and smoking were shown to have a low correlation with patients mortality. As can be seen, there is no significant difference between men and women to die from heart failure, whereas between smoking patients there were more death cases than between non-smoking patients, what can be generally expected.
 
-```{r sex and smoking, echo=FALSE, fig.align = 'center'}
+```{r sex and smoking, echo=FALSE, fig.width = 6, fig.height = 3, fig.align = 'center'}
 library(gridExtra)
 p1 <- train_not_sc %>%
   ggplot(aes(sex, fill = DEATH_EVENT)) +
@@ -228,7 +248,7 @@ train_not_sc %>%
 
 ### 2.2.10 Findings
 
-
+Data exploration revealed relationships between the observed values. Most importantly, the outcome (death event) has a considerable correlation with age, ejection fraction, serum creatinine and serum sodium predictors, which have to be considered in the final model. The only strong correlation between predictors themselves was shown for sex and smoking values. No conspicuous values or outliers could be identified.
 
 ## 2.3 Algorithms
 
@@ -251,7 +271,7 @@ The algorithms were chosen to represent simple as well as more sophisticated met
 
 ## 2.4 Performance evaluation
 
-As it was shown before, the data set includes about 70% of negative outcomes and 30% of positive outcomes. This means that the data is imbalanced, and it is not recommended to use the accuracy metric for model evaluation, since it might show relatively high values for obviously bad predictions. For example, should all outcomes in the train set be predicted as negative, the accuracy would still be as high as 0.683:
+As it was shown before, the data set includes about 70% of negative outcomes and 30% of positive outcomes. This means that the data is imbalanced, and it is not recommended to use the accuracy metric for model evaluation. It might show relatively high values for obviously bad predictions. For example, should all but one outcomes in the train set be predicted as negative, the accuracy would still be as high as 0.683:
 
 ```{r accuracy example}
 pred_neg <- c(1, rep(0, nrow(train) - 1))
@@ -261,19 +281,19 @@ cm_neg <- confusionMatrix(pred_neg, train$DEATH_EVENT, mode = "everything", posi
 cm_neg$overall["Accuracy"]
 ```
 
-Alternatively, F1-score will be used as suggested by numerous sources (e.g. as summarized in [this article] (https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5)). Death event will be used as a "positive" outcome since it is more important for the prediction --- the cost of the mistake might be patients death. A false positive is less crucial in this sense. For the above example, the F1-score is only 0.0256:
+As an alternative, F1-score will be used as suggested by numerous sources (e.g. as summarized in [this article](https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5).^[https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5] Death event will be used as a "positive" outcome since it is more important for the prediction --- the cost of the mistake might be patients death. A false positive is less crucial in this sense. For the above example, the F1-score is only 0.0256, what makes much more sense:
 
 ```{r F1-score example}
 cm_neg$byClass["F1"]
 ```
 
-10-fold cross-validation will be used for model training. The final model evaluation will be performed with the test set.
+A 5-fold cross-validation will be used for model training. A 10-fold cross-validation is not chosen due to the small data set size (10% of train set present only 24 entries). The final model evaluation will be performed with the test set.
 
 # 3 Results
 
 ## 3.1 Preparations
 
-*caret* package will be used for model training and evaluation. Since there is no build-in function for training on F1-score, the necessary function is written first. 
+*caret* package will be used for training and evaluation of the models. As said above, the F1-score will be used for the evaluation. Since there is no build-in function for training on F1-score, the necessary function is written first. 
 
 ```{r F1-score function}
 f1 <- function(data, lev = NULL, model = NULL) {
@@ -285,7 +305,7 @@ f1 <- function(data, lev = NULL, model = NULL) {
 }
 ```
 
-With the *trainControl* function the training method --- 10-fold cross-validation --- and the metric --- F1-score --- are defined:
+With the *trainControl* function the training method --- 5-fold cross-validation --- and the metric --- F1-score --- are defined:
 
 ```{r trainControl}
 fitControl <- trainControl(method = "cv",
@@ -294,8 +314,8 @@ fitControl <- trainControl(method = "cv",
                            classProbs = TRUE,
                            summaryFunction = f1)
 ```
-_correct!!!_
-The following function will be used to quickly try several algorithms. It will take a vector of methods to train and a list algorithm parameters and will return a list containing trained models, confusion matrices and a dataframe with selected metrics calculated for the train set (F1-score, accuracy and specificity).
+
+The following function will be used to quickly try several algorithms. It will take a vector of methods to train and a list algorithm parameters and will return a list containing trained models, confusion matrices and a dataframe with selected metrics calculated **for the train set** (F1-score, accuracy and specificity).
 
 ```{r training function}
 calc_model <- function(method, tuneGrid) {
@@ -306,7 +326,7 @@ calc_model <- function(method, tuneGrid) {
                metric = "F1",
                trControl = fitControl,
                tuneGrid = tuneGrid)
-  # F1-score for the train set will be used to evaluate models prior to evaluation 
+  # F1-score for the train set is used to evaluate models prior to evaluation 
   # based on the test set
   F1_train <- max(fit$results$F1, na.rm = TRUE)
   # Prediction for the train set
@@ -328,42 +348,53 @@ The following list includes all tuning parameters for training. Later in the cha
 ```{r tune grids}
 tuneGrids <- list()
 
+#Naive Bayes
 tuneGrids[[1]] <- expand.grid(fL = seq(0, 5, 1), 
                               usekernel = c(TRUE, FALSE), 
                               adjust = seq(0, 5, 1))
 
+# Logistic regression
 tuneGrids[2] <- list(NULL)
 
+# K-nearest neighbors
 tuneGrids[[3]] <- data.frame(k = seq(1, 99, 2))
 
+# SVM Linear
 tuneGrids[[4]] <- data.frame(C = seq(0.5, 10, 0.5))
 
+# SVM Radial
 tuneGrids[5] <- list(NULL)
 
+# SVM Polynomial
 tuneGrids[6] <- list(NULL)
 
+# Decision tree
 tuneGrids[[7]] <- data.frame(cp = seq(0, 0.05, len = 10))
 
+# Bagged decision tree
 tuneGrids[8] <- list(NULL)
 
+# Boosted decision tree
 tuneGrids[[9]] <- data.frame(nIter = seq(1, 19, 2),
                             method = "M1")
 
+# Random forest
 tuneGrids[[10]] <- data.frame(mtry = seq(1, 11, 1))
 
+# ANN
 tuneGrids[[11]] <- expand.grid(size = seq(1, 10, 1),
                decay = seq(1, 10, 1))
 ```
 
 ## 3.2 Model training
 
-The models are trained using the defined parameters and the resulting metrics are saved as a dataframe. The F1-score obtained in the cross-validation is opposed to the F1-score and accuracy calculated using the trained model for the train set. 
+The models are trained using the defined parameters and the resulting metrics are saved as a dataframe. The F1-score obtained in the cross-validation is opposed to the F1-score and accuracy calculated using the trained model to predict the outcome for the train set. 
 
 ```{r model training, message=FALSE, warning=FALSE}
 methods <- c("nb", "glm", "knn", "svmLinear", "svmRadial", "svmPoly", "rpart",
              "treebag", "adaboost", "rf", "nnet")
 
-# wrapping the function in capture.output prevents printing of train() console messages
+# wrapping the function in capture.output() prevents printing of train() console messages
 silent <- capture.output(
   all_models <- mapply(calc_model, methods, tuneGrids))
 
@@ -372,7 +403,8 @@ rownames(df) <- NULL
 df <- df[, -1]
 knitr::kable(df)
 ```
-As can be seen, the F1-score values of the cross-validation are lower for all methods, especially for the bagged and boosted classification trees and random forest algorithms, what indicates overtraining. In order to overcome this, we will try reduce the number of predictors leaving for training only features that showed correlation with the outcome value more than 0.05 (refer to section 2.2). The function is amended and models are trained anew.
+
+As expected, the F1-score values of the cross-validation are lower than these values obtained using the trained model for the train set itself for all methods. It can be seen especially for the bagged and boosted classification trees and random forest algorithms, what indicates overtraining. In order to overcome this, we will try reduce the number of predictors keeping for training only features that showed correlation with the outcome value more than 0.05 (refer to section 2.2). The function is amended and models are trained again.
 
 ```{r model red training, message=FALSE, warning=FALSE}
 calc_model_red <- function(method, tuneGrid) {
@@ -404,18 +436,19 @@ rownames(df_red) <- NULL
 df_red <- df_red[, -1]
 knitr::kable(df_red)
 ```
+
 A certain improvement of F1-score values can be observed. Additionally, the difference between the F1-score values calculated within the cross-validation and using the trained model for the train set became smaller what means less overtraining. Therefore, the reduced predictors set will be kept for the further analysis. 
 
 The separate models will be evaluated in the following sections.
 
 ### 3.2.3 Naive Bayes
 
-The simple algorithm Naive Bayes shows surprisingly good performance in comparison with the other models. The tuning plot shows that no further prediction improvement through choosing parameters is possible.
+The simple algorithm Naive Bayes shows surprisingly good performance comparable to the other models. The tuning plot shows that no further prediction improvement through choosing parameters is possible.
 
 ```{r naive bayes, fig.width = 5, fig.height = 3, fig.align = 'center'}
+all_models_red[[3]]$F1_train
 all_models_red[[2]]$table
 plot(all_models_red[[1]])
-all_models_red[[3]]$F1_train
 ```
 ### 3.2.4 Logistic regression
 
@@ -445,7 +478,7 @@ plot(all_models_red[[10]])
 ```
 ### 3.2.7 SVM Radial
 
-SVM Radial shows the highest performance of all trained models. Further improvement through parameters tuning is, however, not possible.
+SVM Radial shows the highest performance of all trained models. Further improvement through parameters tuning is, however, not possible, since the F1-score decreases with higher Cost values.
 
 ```{r SVM Radial, fig.width = 5, fig.height = 3, fig.align = 'center'}
 all_models_red[[15]]$F1_train
@@ -480,7 +513,7 @@ all_models_red[[23]]$table
 ```
 ### 3.2.11 Boosted decision tree
 
-Relatively low performance in cross-validation (similar Naive Bayes) opposed to rather good classification of the train set indicates overtraining in this case. Higher number of trees will be tried out in order to improve performance and minimize overtraining.
+Relatively low performance in cross-validation (similar to Naive Bayes) opposed to the perfect classification of the train set indicates overtraining in this case. Higher number of trees will be tried out in order to improve performance and minimize overtraining.
 
 ```{r Boosted decision tree, fig.width = 5, fig.height = 3, fig.align = 'center'}
 all_models_red[[27]]$F1_train
@@ -512,11 +545,14 @@ The above observations are used to redefine tuning parameters ranges for some mo
 Tuning parameters are redefined for SVM linear, Boosted decision tree and Random forest:
 
 ```{r redefine tuning parameters}
+# SVM Linear
 tuneGrids[[4]] <- data.frame(C = seq(0.5, 100, 0.5))
 
+# Boosted decision tree
 tuneGrids[[9]] <- data.frame(nIter = seq(1, 39, 2),
                              method = "M1")
 
+# Random forest
 tuneGrids[[10]] <- data.frame(mtry = seq(1, 20, 1))
 ```
 
@@ -526,6 +562,7 @@ And the models are trained again:
 silent <- capture.output(
   all_models_red <- mapply(calc_model_red, methods, tuneGrids))
 ```
+
 The results are checked again.
 
 SVM Linear:
@@ -537,6 +574,7 @@ all_models_red[[12]]$F1_train
 all_models_red[[11]]$table
 plot(all_models_red[[10]])
 ```
+
 Boosted decision tree:
 
 Higher number of trees did not result in performance improvement.
@@ -546,6 +584,7 @@ all_models_red[[27]]$F1_train
 all_models_red[[26]]$table
 plot(all_models_red[[25]])
 ```
+
 Random forest:
 
 A higher number of randomly selected predictors did not result in performance improvement.
@@ -555,7 +594,8 @@ all_models_red[[30]]$F1_train
 all_models_red[[29]]$table
 plot(all_models_red[[28]])
 ```
-Thus, by changing the parameters' range it was only possible to improve model performance of the SVM Linear model. The final table with the trained models is presented below.
+
+Thus, by changing the parameters' ranges, it was only possible to improve model performance of the SVM Linear model. The final table with the trained models is presented below.
 
 ```{r final table}
 df_red <- bind_rows(all_models_red[seq(3, 33, 3)], .id = "column_label")
@@ -563,11 +603,11 @@ rownames(df_red) <- NULL
 df_red <- df_red[, -1]
 knitr::kable(df_red)
 ```
-The best trained model uses SVM Radial algorithm, whereas the other SVM models (Linear and Polynomial) also show relative high performance values. The models K-Nearest neighbor, Bagged decision tree, Boosted decision tree and Random forest showed strong overtraining for the train set, what might be due to the small set size.
+The best trained model uses SVM Radial algorithm, whereas the other SVM models (Linear and Polynomial) also show relative high performance values. The models K-Nearest neighbor, Bagged decision tree, Boosted decision tree and Random forest show strong overtraining for the train set, what might be due to the small data set size.
 
 ### 3.2.15 Final model evaluation 
 
-The test set is now used to make predictions with the best model and to perform the final evaluation. F1-score value is slightly lower for the test set, but still close enough to indicate that no strong overtraining is observed. The confusion matrix shows that the model was possible to predict most of the negative and positive outcomes correctly. As said above, false negative prediction rate is more important than false positive rate in the current case. The models predicts death event only for 12 patients out of 19 actual positive outcomes (63%).
+The test set is now used to make predictions with the best model --- SVM Radial --- and to perform the final evaluation. F1-score value is slightly lower for the test set, but still close enough to the train result to indicate that no strong overtraining is observed. The confusion matrix shows that the model was possible to predict most of the negative and positive outcomes correctly. As said above, false negative prediction rate is more important than false positive rate for the current case. The model predicts death event only for 12 patients out of 19 actual positive outcomes (63%).
 
 ```{r final model}
 svmRadial_pred <- predict(all_models_red[[13]], test)
@@ -575,9 +615,24 @@ svmRadial_cm <- confusionMatrix(svmRadial_pred, test$DEATH_EVENT, mode = "everyt
 svmRadial_cm$byClass["F1"]
 svmRadial_cm$table
 ```
+
+Finally, all models are evaluated on the test set to assess our approach for selection of the best model. As can be seen, the SVM Radial model shows best performance also on the test set. Thus, the choice was performed correctly. 
+
+```{r function for all models on test}
+all_models_eval <- function(fit) {
+  pred <- predict(fit, test)
+  cm <- confusionMatrix(pred, test$DEATH_EVENT, mode = "everything", positive = "Yes")
+  df <- cm$byClass["F1"]
+}
+all_results <- bind_rows(lapply(all_models_red[seq(1, 31, 3)], all_models_eval), .id = "column_label")
+all_results <- cbind(df_red[c(1,2)], all_results[2])
+knitr::kable(arrange(all_results, desc(F1)))
+```
+
+
 ## 3.3 Ensemble learning
 
-Ensemble learning can be used to improve predictions by considering results of all trained models. The predictions of all models are evaluated like votes, and either the majority of votes or number of votes above a threshold are considered as a positive outcome. To apply this approach, first, we will use the following function that returns a dataframe with predicted outcomes for the train set.
+Ensemble learning can be used to improve predictions by considering cumulated results of several trained models. The predictions of all models are evaluated like votes, and either the majority of votes or number of votes above a defined threshold are considered as a positive outcome. To apply this approach, first, we will use the following function that returns a dataframe with predicted outcomes for the train set.
 
 ```{r function for ensemble}
 pred_all <- function(method, tuneGrid) {
@@ -595,7 +650,7 @@ pred_all <- function(method, tuneGrid) {
 }
 ```
 
-The function creates a dataframe with "Yes"/"No" populated column for each model. The models K-Nearest neighbors, Bagged decision tree, Boosted decision tree and Random forest are excluded from the ensemble approach since they showed strong overtraining, as shown before. Factor output "Yes"/"No" is confirmed to numeric 1/0 and the row sums are used as a cumulative prediction.
+The function creates a dataframe with "Yes"/"No" populated column for each model. The models K-Nearest neighbors, Bagged decision tree, Boosted decision tree and Random forest are excluded from the ensemble approach since they showed strong overtraining, as shown before. Otherwise these models would bias the ensemble outcome. Factor output "Yes"/"No" is transformed to numeric 1/0 and the row sums are used as a cumulative prediction.
 
 ```{r ensemble caluclation, message=FALSE, warning=FALSE}
 silent <- capture.output(
@@ -610,7 +665,7 @@ all_sums <- rowSums(all)
 all_sums
 ```
 
-In order to find out, which threshold should be used to separate positive and negative outcomes, the function ensemble() is used. It takes a vote threshold needed for a positive or negative vote and returnes the corresponding F1-score value. Vote thresholds 1--7 are tried and corresponding F1-scores are calculated. Finally, the relationship between the threshold and F1-score is shown in the plot.
+In order to find out, which threshold should be used to separate positive and negative outcomes, the function ensemble() is created. It takes a vote threshold needed for a positive or negative vote and returns the corresponding F1-score value. Vote thresholds 1--7 are tried and corresponding F1-scores are calculated. Finally, the relationship between the threshold and F1-score is shown in a plot.
 
 ```{r ensemble function, warning=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
 ensemble <- function(vote) {
@@ -629,9 +684,10 @@ df_ens %>%
   ggplot(aes(vote, F1_ens)) +
   geom_line() +
   xlab("Vote threshold") +
-  ylab("F1 ensemble")
+  ylab("F1 ensemble") +
+  scale_x_continuous(breaks = seq(1, 7, 1))
 ```
-The best threshold is just 1, what means that if any of the considered models predicts a positive outcome, then the ensemble prediction is also a positive outcome. In other words, it is like a full outer join of all predictions. The F1-score is slightly higher than this of all included models (calculated for the train set, not in cross-validation).
+The best threshold is just 1, what means that if **any** of the considered models predicts a positive outcome, then the ensemble prediction is also a positive outcome. In other words, it is like a full outer join of all predictions. The F1-score of the ensemble prediction is slightly higher than this of all included models (calculated for the train set, not in cross-validation).
 
 ```{r F1-score for ensamble}
 all_voted <- ifelse(all_sums >= 1, 1, 0)
@@ -640,7 +696,7 @@ levels(all_voted) = c("No", "Yes")
 cm_voted <- confusionMatrix(all_voted, train$DEATH_EVENT, positive = "Yes")
 cm_voted$byClass["F1"]
 ```
-Though, the use of threshold = 1 doesn't look to be very helpful, the performance of the ensemble prediction is still evaluated.
+Though, the use of threshold = 1 doesn't look to be very helpful, the performance of the ensemble prediction is still evaluated on the test set.
 
 ```{r performance of ensamble, message=FALSE, warning=FALSE}
 pred_all_test <- function(method, tuneGrid) {
@@ -671,21 +727,21 @@ levels(all_test_voted) = c("No", "Yes")
 cm_test_voted <- confusionMatrix(all_test_voted, test$DEATH_EVENT, positive = "Yes")
 cm_test_voted$byClass["F1"]
 ```
-As can be seen, the performance of the ensemble is lower than this of the best trained model. 
+As can be seen, the performance of the ensemble is lower than this of the best trained model and will not be further considered. 
 
 # 4 Conclusion
 
-In this project, we have trained and evaluated several machine learning models to predict mortality caused by heart failure based on patients features. 
+In this project, we have trained and evaluated several machine learning models to predict mortality caused by heart failure based on patients' features. 
 
-The data set was analysed and evaluated in order to find important data relationships and to select meaningful predictors for the model training. The data was prepared for the training, whereas numeric predictors were scaled. F1-score was chosen to evaluate model performance based on the imbalanced nature of data. Different algorithms were used then to train the models and the best algorithm was identified.
+The data set was analyzed and evaluated in order to find important data relationships and to select meaningful predictors for the model training. The data was prepared for the training, whereas numeric predictors were scaled. F1-score was chosen to evaluate model performance due to the imbalanced nature of data. Different algorithms were used then to train the models and the best algorithm was identified.
 
-Radial Support Vector Machine (SVM Radial) showed the highest performance of all models in the 10-fold cross-validation (F1-score: 0.66). The models predicts death event only for 12 patients out of 19 actual positive outcomes (63%), what would be insufficient in the real world. The performance might be improved by using a larger training data set, 299 observations is modest.
+Radial Support Vector Machine (SVM Radial) showed the highest performance of all models in the 5-fold cross-validation (F1-score: 0.657) and in the final performance check on the test set (F1-score: 0.619). The model predicts death event only for 12 patients out of 19 actual positive outcomes (63%), what would be insufficient in the real world. The performance might be improved by using a larger training data set, 299 observations present indeed a modest data collection.
 
-The other tried algorithms showed lower performance and some of them showed a strong overtraining. The attempts to improve the performance/to reduce overtraining were fruitless though. The application of the ensemble learning approach also didn't result in any improvement.
+The other tried algorithms showed lower performance and some of them showed a strong overtraining. The attempts to improve the performance/to reduce overtraining were fruitless, though. The application of the ensemble learning approach also didn't result in any improvement.
 
 ## 4.1 Limitations
 
-As already mentioned, the small size of the available data set was the main limitation in the project. 
+As already mentioned, the small size of the available data set was the main limitation in the project. More information would have been a profound base for training/cross-validation providing better and deeper learning. Presumably, several of the tried algorithms would show higher performance having sufficient data.
 
 ## 4.2 Outlook
 
