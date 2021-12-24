@@ -24,7 +24,9 @@ options(digits=3)
 # Preparation of the data set
 ############################
 
-data <- read.csv("heart_failure_clinical_records_dataset.csv")
+# download data
+url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00519/heart_failure_clinical_records_dataset.csv'
+data <- read.csv(url)
 
 # Time column will not be considered for the prediction since this information
 # will not be available for real patients
@@ -214,18 +216,18 @@ calc_model <- function(method, tuneGrid) {
                tuneGrid = tuneGrid)
   # F1-score for the train set will be used to evaluate models prior to evaluation 
   # based on the test set
-  F1_train <- max(fit$results$F1, na.rm = TRUE)
+  F1_cv <- max(fit$results$F1, na.rm = TRUE)
   # For the prediction of the test set metrics F1, Accuracy, Specificity and Kappa
   # will be shown and considered for evaluation
   pred <- predict(fit, train)
   cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
-  accuracy <- cm$overall["Accuracy"]
-  F1 <- cm$byClass["F1"]
+  accuracy_train <- cm$overall["Accuracy"]
+  F1_train <- cm$byClass["F1"]
   results <- list()
   # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
   results[[1]] <- fit
   results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy)
+  results[[3]] <- data.frame(method = method, F1_cv = F1_cv, F1_train = F1_train, accuracy_train = accuracy_train)
   return(results)
 }
 
@@ -287,7 +289,7 @@ df
 calc_model_red <- function(method, tuneGrid) {
   set.seed(3)
   fit <- train(DEATH_EVENT ~ age + anaemia + ejection_fraction + serum_creatinine +
-                 serum_sodium, # only features with correlation >= 0.05 are left
+                 serum_sodium, # only features with correlation >= 0.05 are kept
                data = train,
                method = method,
                metric = "F1",
@@ -295,18 +297,18 @@ calc_model_red <- function(method, tuneGrid) {
                tuneGrid = tuneGrid)
   # F1-score for the train set will be used to evaluate models prior to evaluation 
   # based on the test set
-  F1_train <- max(fit$results$F1, na.rm = TRUE)
+  F1_cv <- max(fit$results$F1, na.rm = TRUE)
   # For the prediction of the test set metrics F1, Accuracy, Specificity and Kappa
   # will be shown and considered for evaluation
   pred <- predict(fit, train)
   cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
-  accuracy <- cm$overall["Accuracy"]
-  F1 <- cm$byClass["F1"]
+  accuracy_train <- cm$overall["Accuracy"]
+  F1_train <- cm$byClass["F1"]
   results <- list()
   # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
   results[[1]] <- fit
   results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy)
+  results[[3]] <- data.frame(method = method, F1_cv = F1_cv, F1_train = F1_train, accuracy_train = accuracy_train)
   return(results)
 }
 
@@ -324,66 +326,66 @@ df_red
 # Naive Bayes
 
 plot(all_models[[1]])
-all_models_red[[3]]$F1_train
+all_models_red[[3]]$F1_cv
 all_models[[2]]$table
 
 # Logistic regression
 
-all_models_red[[6]]$F1_train
+all_models_red[[6]]$F1_cv
 all_models[[5]]$table
 
 # K-nearest neighbors
 
 plot(all_models[[7]])
-all_models_red[[9]]$F1_train
+all_models_red[[9]]$F1_cv
 all_models[[8]]$table
 
 # SVM Linear
 
 plot(all_models[[10]])
-all_models_red[[12]]$F1_train
+all_models_red[[12]]$F1_cv
 all_models[[11]]$table
 
 
 # SVM Radial
 
 plot(all_models[[13]])
-all_models_red[[15]]$F1_train
+all_models_red[[15]]$F1_cv
 all_models[[14]]$table
 
 # SVM Polynomial
 
 plot(all_models[[16]])
-all_models_red[[18]]$F1_train
+all_models_red[[18]]$F1_cv
 all_models[[17]]$table
 
 # Decision tree
 
 plot(all_models[[19]])
-all_models_red[[21]]$F1_train
+all_models_red[[21]]$F1_cv
 all_models[[20]]$table
 
 # Bagged decision tree
 
-all_models_red[[24]]$F1_train
+all_models_red[[24]]$F1_cv
 all_models[[23]]$table
 
 # Boosted decision tree
 
 plot(all_models[[25]])
-all_models_red[[27]]$F1_train
+all_models_red[[27]]$F1_cv
 all_models[[26]]$table
 
 # Random forest
 
 plot(all_models[[28]])
-all_models_red[[30]]$F1_train
+all_models_red[[30]]$F1_cv
 all_models[[29]]$table
 
 # ANN
 
 plot(all_models[[31]])
-all_models_red[[33]]$F1_train
+all_models_red[[33]]$F1_cv
 all_models[[32]]$table
 
 # Tuning parameters are redefined for SVM linear, Boosted decision tree and Random forest
@@ -404,29 +406,48 @@ all_models <- mapply(calc_model, methods, tuneGrids)
 
 # SVM Linear
 
-all_models_red[[12]]$F1_train
+all_models_red[[12]]$F1_cv
 all_models_red[[11]]$table
 plot(all_models_red[[10]])
 
 # Boosted decision tree
 
-all_models_red[[27]]$F1_train
+all_models_red[[27]]$F1_cv
 all_models_red[[26]]$table
 plot(all_models_red[[25]])
 
 # Random forest
 
-all_models_red[[30]]$F1_train
+all_models_red[[30]]$F1_cv
 all_models_red[[29]]$table
 plot(all_models_red[[28]])
 
+# Overview of performance of all models
+
+df_red <- bind_rows(all_models_red[seq(3, 33, 3)], .id = "column_label")
+rownames(df_red) <- NULL
+df_red <- df_red[, -1]
+df_red
+
+# In a plot
+
+df_red %>%
+  dplyr::select(-accuracy_train) %>%
+  melt(id = "method") %>%
+  ggplot(aes(x = reorder(method, value*(variable == "F1_cv")), y = value, fill = variable)) +
+  geom_col(position = "identity", alpha = 0.3) +
+  scale_fill_manual(values=c("F1_cv"="#222222",
+                             "F1_train"="#777777")) +
+  scale_y_continuous(limits = c(0,1)) +
+  xlab("method") +
+  coord_flip()
 
 # Performance of the best model
 svmRadial_pred <- predict(all_models_red[[13]], test)
 svmRadial_cm <- confusionMatrix(svmRadial_pred, test$DEATH_EVENT, mode = "everything", positive = "Yes")
 svmRadial_cm
 
-# Performance of all models
+# Final performance of all models
 
 all_models_eval <- function(fit) {
   pred <- predict(fit, test)
@@ -436,6 +457,17 @@ all_models_eval <- function(fit) {
 all_results <- bind_rows(lapply(all_models_red[seq(1, 31, 3)], all_models_eval), .id = "column_label")
 all_results <- cbind(df_red[c(1,2)], all_results[2])
 arrange(all_results, desc(F1))
+
+all_results %>%
+  melt(id = "method") %>%
+  ggplot(aes(x = reorder(method, value*(variable == "F1")), y = value, fill = variable)) +
+  geom_col(position = "identity", alpha = 0.3) +
+  scale_fill_manual(values=c("F1_cv" = "#777777",
+                             "F1" = "#222222")) +
+  scale_y_continuous(limits = c(0,1)) +
+  xlab("method") +
+  coord_flip()
+
 
 #############################################################################
 # Ensemble learning: Ensemble of 7 models will be used to improve prediction

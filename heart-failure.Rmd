@@ -11,11 +11,18 @@ options(digits=3)
 ```
 
 ```{r packages, echo=FALSE, message=FALSE, warning=FALSE}
-library(tidyverse)
-library(caret)
-library(psych)
-library(reshape2)
-library(gridExtra)
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(psych)) install.packages("psych", repos = "http://cran.us.r-project.org")
+if(!require(reshape2)) install.packages("reshape2", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org")
+if(!require(klaR)) install.packages("klaR", repos = "http://cran.us.r-project.org")
+if(!require(kernlab)) install.packages("kernlab", repos = "http://cran.us.r-project.org")
+if(!require(rpart)) install.packages("rpart", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
+if(!require(fastAdaboost)) install.packages("fastAdaboost", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(nnet)) install.packages("nnet", repos = "http://cran.us.r-project.org")
 ```
 
 
@@ -25,29 +32,32 @@ In this project we will train a machine learning model to predict mortality caus
 
 Heart failure occurs when the heart becomes too weak or stiff to pump enough blood to meet the body’s needs. Symptoms typically include breathlessness, extreme fatigue, reduced capacity to exercise, etc. The number of people living with HF is high and growing. More than 15 million people (~ 2%) are estimated to be living with HF in Europe. People living with HF are at high risk of hospitalisation. Despite improvements in treatment options and care in the past two decades, mortality from HF remains high.^[Heart Failure Policy Network. 2020. Heart failure policy and practice in Europe. London: HFPN] Thus, there is a need for reliable prediction systems for mortality caused by heart failure.
 
-The used dataset contains medical records of 299 patients suffering from heart failure, collected during their follow-up period. Each patient profile includes 11 clinical features including blood measurements, health indicators and other relevant information. The data set can be downloaded from the [UCI Machine Learning Repository](https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records).^[https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records]
+The used data set contains medical records of 299 patients suffering from heart failure, collected during their follow-up period. Each patient profile includes 11 clinical features including blood measurements, health indicators and other relevant information. The data set can be downloaded from the [UCI Machine Learning Repository](https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records).^[https://archive-beta.ics.uci.edu/ml/datasets/heart+failure+clinical+records]
 
-The goal of this project is to develop a machine learning model that will provide the best prediction of the patients death based on the available information. *caret* package will be used for training and assessing the models. Model performance will be evaluated using a metric most appropriate for the observed data.
+The goal of this project is to develop a machine learning model that will provide the best prediction of a patients death based on the available information. *caret* package will be used for training and assessing the models. Model performance will be evaluated using a metric most appropriate for the observed data.
 
 
 # 2 Analysis and methods
 
 ## 2.1 Data preparation
 
-The data set is available as a CSV file with columns separated by commas. It is directly saved as a data frame which doesn't need any cleaning and has the following structure:
+The data set is available as a CSV file with columns separated by commas. It is directly saved as a data frame which does not need any cleaning and has the following structure:
 
 ```{r raw dataset}
-data <- read.csv("heart_failure_clinical_records_dataset.csv")
+# download data
+url = 'https://archive.ics.uci.edu/ml/machine-learning-databases/00519/
+heart_failure_clinical_records_dataset.csv'
+data <- read.csv(url)
 str(data)
 ```
 
-The dataset has no missing values:
+The data set has no missing values:
 
 ```{r na}
 sum(is.na(data))
 ```
 
-For the final dataset used for prediction, the _time_ feature (time in days after start of the observation when the patient was dismissed or died) is not selected since this information will not be available for real patients. Binary variables are converted to factors and numeric variables are scaled to improve the prediction. The outcome values' (death event) levels are converted to "No"/"Yes" as needed for some algorithms.
+For the final data set used for prediction, the _time_ feature (time in days after start of the observation when the patient was dismissed or died) is not selected since this information will not be available for real patients. Binary variables are converted to factors and numeric variables are scaled to improve the prediction. The outcome values' (death event) levels are converted to "No"/"Yes" as needed for some algorithms.
 
 ```{r factor and scaling, message=FALSE}
 data <- dplyr::select(data, -time)
@@ -59,7 +69,7 @@ data_sc[-factors] <- sapply(data[-factors], scale)
 levels(data_sc$DEATH_EVENT) = c("No","Yes")
 ```
 
-Based on the resulting data set, train and test sets are created. It is shown that the both sets have a similar proportion of positive and negative outcomes.
+Based on the resulting data set, train and test sets are created. Due to the small size of the data set, 80% of data will be used for training. It is shown that the both sets have a similar proportion of positive and negative outcomes.
 
 ```{r train and test, message=FALSE}
 set.seed(2)
@@ -146,7 +156,7 @@ train_not_sc %>%
 
 ### 2.2.4 Diabetes
 
-As expected based on the correlation heatmap, there is no evidence that patients sufferiing from diabetes are more likely to die from heart failure than patients without diabetes for the current dataset. This can be seen in the following percent stacked barchart.
+As expected based on the correlation heatmap, the current data set provides no evidence that patients suffering from diabetes are more likely to die from heart failure than patients without diabetes. This can be seen in the following percent stacked barchart.
 
 ```{r diabetes, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
 train_not_sc %>%
@@ -230,7 +240,7 @@ p2 <- train_not_sc %>%
 grid.arrange(p1, p2, nrow = 1)
 ```
 
-Interestingly, there is a high correlation between sex and smoking, as shown in the following plot. Based on it, one might deduce which sex is presented as "0" and which as "1".
+Interestingly, there is a high correlation between sex and smoking themselves, as shown in the following plot. Based on it, one might deduce which sex is presented as "0" and which as "1".
 
 ```{r sex corr, echo=FALSE, fig.width = 4, fig.height = 3, fig.align = 'center'}
 train_not_sc %>%
@@ -264,7 +274,7 @@ The algorithms were chosen to represent simple as well as more sophisticated met
 
 ## 2.4 Performance evaluation
 
-As it was shown before, the data set includes about 70% of negative outcomes and 30% of positive outcomes. This means that the data is imbalanced, and it is not recommended to use the accuracy metric for model evaluation. It might show relatively high values for obviously bad predictions. For example, should all but one outcomes in the train set be predicted as negative, the accuracy would still be as high as 0.683:
+As it was shown before, the data set includes about 70% negative outcomes and 30% positive outcomes. This means that the data is imbalanced, and it is not recommended to use the accuracy metric for model evaluation. It might show relatively high values for obviously bad predictions. For example, should all but one outcome in the train set be predicted as negative, the accuracy would still be as high as 0.683:
 
 ```{r accuracy example}
 pred_neg <- c(1, rep(0, nrow(train) - 1))
@@ -274,7 +284,7 @@ cm_neg <- confusionMatrix(pred_neg, train$DEATH_EVENT, mode = "everything", posi
 cm_neg$overall["Accuracy"]
 ```
 
-As an alternative, F1-score will be used as suggested by numerous sources (e.g. as summarized in [this article](https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5).^[https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5] Death event will be used as a "positive" outcome since it is more important for the prediction --- the cost of the mistake might be patients death. A false positive is less crucial in this sense. For the above example, the F1-score is only 0.0256, what makes much more sense:
+As an alternative, F1-score will be used as suggested by numerous sources (e.g. as summarized in [this article](https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5).^[https://towardsdatascience.com/metrics-for-imbalanced-classification-41c71549bbb5] Death event will be used as a "positive" outcome since it is more important for the prediction --- the cost of the mistake might be the patient's death. A false positive is less crucial in this sense. For the above example, the F1-score is only 0.0256, what makes much more sense:
 
 ```{r F1-score example}
 cm_neg$byClass["F1"]
@@ -308,7 +318,7 @@ fitControl <- trainControl(method = "cv",
                            summaryFunction = f1)
 ```
 
-The following function will be used to quickly try several algorithms. It will take a vector of methods to train and a list algorithm parameters and will return a list containing trained models, confusion matrices and a dataframe with selected metrics calculated **for the train set** (F1-score, accuracy and specificity).
+The following function will be used to quickly try several algorithms. It will take a vector of methods to train and a list of algorithm parameters and will return a list containing trained models, confusion matrices and a dataframe with selected metrics calculated **for the train set** (F1-score and accuracy).
 
 ```{r training function}
 calc_model <- function(method, tuneGrid) {
@@ -321,17 +331,19 @@ calc_model <- function(method, tuneGrid) {
                tuneGrid = tuneGrid)
   # F1-score for the train set is used to evaluate models prior to evaluation 
   # based on the test set
-  F1_train <- max(fit$results$F1, na.rm = TRUE)
+  F1_cv <- max(fit$results$F1, na.rm = TRUE)
   # Prediction for the train set
   pred <- predict(fit, train)
   cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
-  accuracy <- cm$overall["Accuracy"]
-  F1 <- cm$byClass["F1"]
+  accuracy_train <- cm$overall["Accuracy"]
+  F1_train <- cm$byClass["F1"]
   results <- list()
-  # The functions returns a list of trained models, confusion matrices and a dataframe with metrics
+  # The functions returns a list of trained models, confusion matrices and
+  #a dataframe with metrics
   results[[1]] <- fit
   results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy)
+  results[[3]] <- data.frame(method = method, F1_cv = F1_cv, F1_train = F1_train, 
+                             accuracy_train = accuracy_train)
   return(results)
 }
 ```
@@ -397,27 +409,28 @@ df <- df[, -1]
 knitr::kable(df)
 ```
 
-As expected, the F1-score values of the cross-validation are lower than these values obtained using the trained model for the train set itself for all methods. It can be seen especially for the bagged and boosted classification trees and random forest algorithms, what indicates overtraining. In order to overcome this, we will try reduce the number of predictors keeping for training only features that showed correlation with the outcome value more than 0.05 (refer to section 2.2). The function is amended and models are trained again.
+As expected, the F1-score values of the cross-validation (F1_cv) are lower than these values obtained using the trained model for the train set itself (F1_train) for all methods. It can be seen especially for the bagged and boosted classification trees and random forest algorithms, what indicates overtraining. In order to overcome this, we will try to reduce the number of predictors keeping only features that showed correlation with the outcome value more than 0.05 (refer to section 2.2) for training. The function is amended and models are trained again.
 
 ```{r model red training, message=FALSE, warning=FALSE}
 calc_model_red <- function(method, tuneGrid) {
   set.seed(3)
   fit <- train(DEATH_EVENT ~ age + anaemia + ejection_fraction + serum_creatinine +
-               serum_sodium, # only features with correlation >= 0.05 are left
+               serum_sodium, # only features with correlation >= 0.05 are kept
                data = train,
                method = method,
                metric = "F1",
                trControl = fitControl,
                tuneGrid = tuneGrid)
-  F1_train <- max(fit$results$F1, na.rm = TRUE)
+  F1_cv <- max(fit$results$F1, na.rm = TRUE)
   pred <- predict(fit, train)
   cm <- confusionMatrix(pred, train$DEATH_EVENT, mode = "everything", positive = "Yes")
-  accuracy <- cm$overall["Accuracy"]
-  F1 <- cm$byClass["F1"]
+  accuracy_train <- cm$overall["Accuracy"]
+  F1_train <- cm$byClass["F1"]
   results <- list()
   results[[1]] <- fit
   results[[2]] <- cm
-  results[[3]] <- data.frame(method = method, F1_train = F1_train, F1 = F1, accuracy = accuracy)
+  results[[3]] <- data.frame(method = method, F1_cv = F1_cv, F1_train = F1_train,
+                             accuracy_train = accuracy_train)
   return(results)
 }
 
@@ -430,7 +443,7 @@ df_red <- df_red[, -1]
 knitr::kable(df_red)
 ```
 
-A certain improvement of F1-score values can be observed. Additionally, the difference between the F1-score values calculated within the cross-validation and using the trained model for the train set became smaller what means less overtraining. Therefore, the reduced predictors set will be kept for the further analysis. 
+A certain improvement of F1-score values can be observed. Additionally, the difference between the F1_cv and F1_train became smaller what means less overtraining. Therefore, the reduced predictors set will be kept for the further analysis. 
 
 The separate models will be evaluated in the following sections.
 
@@ -439,7 +452,7 @@ The separate models will be evaluated in the following sections.
 The simple algorithm Naive Bayes shows surprisingly good performance comparable to the other models. The tuning plot shows that no further prediction improvement through choosing parameters is possible.
 
 ```{r naive bayes, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[3]]$F1_train
+all_models_red[[3]]$F1_cv
 all_models_red[[2]]$table
 plot(all_models_red[[1]])
 ```
@@ -448,7 +461,7 @@ plot(all_models_red[[1]])
 Logistic regression showed a slightly better performance than Naive Bayes. There are no model parameters to tune.
 
 ```{r Logistic regression}
-all_models_red[[6]]$F1_train
+all_models_red[[6]]$F1_cv
 all_models_red[[5]]$table
 ```
 ### 3.2.5 K-nearest neighbors
@@ -456,7 +469,7 @@ all_models_red[[5]]$table
 K-nearest neighbors show similar performance to Naive Bayes. Higher number of neighbors seem only to decrease the F1-score.
 
 ```{r KNN, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[9]]$F1_train
+all_models_red[[9]]$F1_cv
 all_models_red[[8]]$table
 plot(all_models_red[[7]])
 ```
@@ -465,7 +478,7 @@ plot(all_models_red[[7]])
 SVM Linear shows performance similar to Logistic regression. Higher cost values can be tried out in order to increase the F1-score.
 
 ```{r SVM Linear, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[12]]$F1_train
+all_models_red[[12]]$F1_cv
 all_models_red[[11]]$table
 plot(all_models_red[[10]])
 ```
@@ -474,7 +487,7 @@ plot(all_models_red[[10]])
 SVM Radial shows the highest performance of all trained models. Further improvement through parameters tuning is, however, not possible, since the F1-score decreases with higher Cost values.
 
 ```{r SVM Radial, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[15]]$F1_train
+all_models_red[[15]]$F1_cv
 all_models_red[[14]]$table
 plot(all_models_red[[13]])
 ```
@@ -483,7 +496,7 @@ plot(all_models_red[[13]])
 SVM Polynomial shows performance close to the SVM Radial model. Also here, the tuning plot shows that no further prediction improvement through choosing parameters is possible.
 
 ```{r SVM Polynomial, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[18]]$F1_train
+all_models_red[[18]]$F1_cv
 all_models_red[[17]]$table
 plot(all_models_red[[16]])
 ```
@@ -492,7 +505,7 @@ plot(all_models_red[[16]])
 Decision tree algorithm shows performance close to the SVM Radial model. No further improvement through parameters tuning is possible.
 
 ```{r Decision tree, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[21]]$F1_train
+all_models_red[[21]]$F1_cv
 all_models_red[[20]]$table
 plot(all_models_red[[19]])
 ```
@@ -501,7 +514,7 @@ plot(all_models_red[[19]])
 Bagged decision tree shows surprisingly low performance similar to Naive Bayes. The confusion table indicates strong overtraining. There are no model parameters to tune.
 
 ```{r Bagged decision tree}
-all_models_red[[24]]$F1_train
+all_models_red[[24]]$F1_cv
 all_models_red[[23]]$table
 ```
 ### 3.2.11 Boosted decision tree
@@ -509,7 +522,7 @@ all_models_red[[23]]$table
 Relatively low performance in cross-validation (similar to Naive Bayes) opposed to the perfect classification of the train set indicates overtraining in this case. Higher number of trees will be tried out in order to improve performance and minimize overtraining.
 
 ```{r Boosted decision tree, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[27]]$F1_train
+all_models_red[[27]]$F1_cv
 all_models_red[[26]]$table
 plot(all_models_red[[25]])
 ```
@@ -518,7 +531,7 @@ plot(all_models_red[[25]])
 Random forest shows performance similar to the SVM Linear model. The confusion table indicates strong overtraining. A higher number of randomly selected predictors can be used to improve performance/reduce overtraining.
 
 ```{r Random forest, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[30]]$F1_train
+all_models_red[[30]]$F1_cv
 all_models_red[[29]]$table
 plot(all_models_red[[28]])
 ```
@@ -527,7 +540,7 @@ plot(all_models_red[[28]])
 ANN shows performance similar to the Random forest model. No further improvement through parameters tuning is possible.
 
 ```{r ANN, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[33]]$F1_train
+all_models_red[[33]]$F1_cv
 all_models_red[[32]]$table
 plot(all_models_red[[31]])
 ```
@@ -563,7 +576,7 @@ SVM Linear:
 Higher cost values indeed resulted in a slight increase of the F1-score.
 
 ```{r SVM Linear 2, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[12]]$F1_train
+all_models_red[[12]]$F1_cv
 all_models_red[[11]]$table
 plot(all_models_red[[10]])
 ```
@@ -573,7 +586,7 @@ Boosted decision tree:
 Higher number of trees did not result in performance improvement.
 
 ```{r Boosted decision tree 2, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[27]]$F1_train
+all_models_red[[27]]$F1_cv
 all_models_red[[26]]$table
 plot(all_models_red[[25]])
 ```
@@ -583,7 +596,7 @@ Random forest:
 A higher number of randomly selected predictors did not result in performance improvement.
 
 ```{r Random forest 2, fig.width = 5, fig.height = 3, fig.align = 'center'}
-all_models_red[[30]]$F1_train
+all_models_red[[30]]$F1_cv
 all_models_red[[29]]$table
 plot(all_models_red[[28]])
 ```
@@ -596,20 +609,26 @@ rownames(df_red) <- NULL
 df_red <- df_red[, -1]
 knitr::kable(df_red)
 ```
-The best trained model uses SVM Radial algorithm, whereas the other SVM models (Linear and Polynomial) also show relative high performance values. The models K-Nearest neighbor, Bagged decision tree, Boosted decision tree and Random forest show strong overtraining for the train set, what might be due to the small data set size.
+```{r final plot, echo=FALSE, fig.width = 6, fig.height = 3, fig.align = 'center'}
+df_red %>%
+  dplyr::select(-accuracy_train) %>%
+  melt(id = "method") %>%
+  ggplot(aes(x = reorder(method, value*(variable == "F1_cv")), y = value, fill = variable)) +
+  geom_col(position = "identity", alpha = 0.3) +
+  scale_fill_manual(values=c("F1_cv"="#222222",
+                             "F1_train"="#777777")) +
+  scale_y_continuous(limits = c(0,1)) +
+  xlab("method") +
+  coord_flip()
+```
+
+The best trained model uses SVM Radial algorithm, whereas one other SVM model (Polynomial) also shows relative high performance value. The models K-Nearest neighbor, Bagged decision tree, Boosted decision tree and Random forest show strong overtraining for the train set, what might be due to the small data set size.
+
+Now when the model hyperparameters were set, the final evaluation can be performed on the test set.
 
 ### 3.2.15 Final model evaluation 
 
-The test set is now used to make predictions with the best model --- SVM Radial --- and to perform the final evaluation. F1-score value is slightly lower for the test set, but still close enough to the train result to indicate that no strong overtraining is observed. The confusion matrix shows that the model was possible to predict most of the negative and positive outcomes correctly. As said above, false negative prediction rate is more important than false positive rate for the current case. The model predicts death event only for 12 patients out of 19 actual positive outcomes (63%).
-
-```{r final model}
-svmRadial_pred <- predict(all_models_red[[13]], test)
-svmRadial_cm <- confusionMatrix(svmRadial_pred, test$DEATH_EVENT, mode = "everything", positive = "Yes")
-svmRadial_cm$byClass["F1"]
-svmRadial_cm$table
-```
-
-Finally, all models are evaluated on the test set to assess our approach for selection of the best model. As can be seen, the SVM Radial model shows best performance also on the test set. Thus, the choice was performed correctly. 
+The test set is now used to make predictions and to perform the final evaluation. The SVM Radial model further shows the best performance. The F1-score value is slightly lower for the test set, but still close enough to the train result to indicate that no strong overtraining is observed. 
 
 ```{r function for all models on test}
 all_models_eval <- function(fit) {
@@ -617,9 +636,31 @@ all_models_eval <- function(fit) {
   cm <- confusionMatrix(pred, test$DEATH_EVENT, mode = "everything", positive = "Yes")
   df <- cm$byClass["F1"]
 }
-all_results <- bind_rows(lapply(all_models_red[seq(1, 31, 3)], all_models_eval), .id = "column_label")
+all_results <- bind_rows(lapply(all_models_red[seq(1, 31, 3)], all_models_eval), 
+                         .id = "column_label")
 all_results <- cbind(df_red[c(1,2)], all_results[2])
 knitr::kable(arrange(all_results, desc(F1)))
+```
+```{r final plot 2, echo=FALSE, fig.width = 6, fig.height = 3, fig.align = 'center'}
+all_results %>%
+  melt(id = "method") %>%
+  ggplot(aes(x = reorder(method, value*(variable == "F1")), y = value, fill = variable)) +
+  geom_col(position = "identity", alpha = 0.3) +
+  scale_fill_manual(values=c("F1_cv" = "#777777",
+                             "F1" = "#222222")) +
+  scale_y_continuous(limits = c(0,1)) +
+  xlab("method") +
+  coord_flip()
+```
+
+The following confusion matrix shows that the model was possible to predict most of the negative and positive outcomes correctly. As said above, false negative prediction rate is more important than false positive rate for the current case. The model predicts death event only for 12 patients out of 19 actual positive outcomes (63%).
+
+```{r final model}
+svmRadial_pred <- predict(all_models_red[[13]], test)
+svmRadial_cm <- confusionMatrix(svmRadial_pred, test$DEATH_EVENT, mode = "everything", 
+                                positive = "Yes")
+svmRadial_cm$byClass["F1"]
+svmRadial_cm$table
 ```
 
 
@@ -643,7 +684,7 @@ pred_all <- function(method, tuneGrid) {
 }
 ```
 
-The function creates a dataframe with "Yes"/"No" populated column for each model. The models K-Nearest neighbors, Bagged decision tree, Boosted decision tree and Random forest are excluded from the ensemble approach since they showed strong overtraining, as shown before. Otherwise these models would bias the ensemble outcome. Factor output "Yes"/"No" is transformed to numeric 1/0 and the row sums are used as a cumulative prediction.
+The function creates a dataframe with a "Yes"/"No" populated column for each model. The models K-Nearest neighbors, Bagged decision tree, Boosted decision tree and Random forest are excluded from the ensemble approach since they showed strong overtraining, as shown before. Otherwise these models would bias the ensemble outcome. Factor output "Yes"/"No" is transformed to numeric 1/0 and the row sums are used as a cumulative prediction.
 
 ```{r ensemble caluclation, message=FALSE, warning=FALSE}
 silent <- capture.output(
@@ -658,7 +699,7 @@ all_sums <- rowSums(all)
 all_sums
 ```
 
-In order to find out, which threshold should be used to separate positive and negative outcomes, the function ensemble() is created. It takes a vote threshold needed for a positive or negative vote and returns the corresponding F1-score value. Vote thresholds 1--7 are tried and corresponding F1-scores are calculated. Finally, the relationship between the threshold and F1-score is shown in a plot.
+In order to find out which threshold should be used to separate positive and negative outcomes, the function ensemble() is created. It takes a vote threshold needed for a positive or negative vote and returns the corresponding F1-score value. Vote thresholds 1--7 are tried and corresponding F1-scores are calculated. Finally, the relationship between the threshold and F1-score is shown in a plot.
 
 ```{r ensemble function, warning=FALSE, fig.width = 5, fig.height = 3, fig.align = 'center'}
 ensemble <- function(vote) {
@@ -689,7 +730,7 @@ levels(all_voted) = c("No", "Yes")
 cm_voted <- confusionMatrix(all_voted, train$DEATH_EVENT, positive = "Yes")
 cm_voted$byClass["F1"]
 ```
-Though, the use of threshold = 1 doesn't look to be very helpful, the performance of the ensemble prediction is still evaluated on the test set.
+Though the use of threshold = 1 does not look to be very helpful, the performance of the ensemble prediction is still evaluated on the test set.
 
 ```{r performance of ensamble, message=FALSE, warning=FALSE}
 pred_all_test <- function(method, tuneGrid) {
@@ -720,17 +761,18 @@ levels(all_test_voted) = c("No", "Yes")
 cm_test_voted <- confusionMatrix(all_test_voted, test$DEATH_EVENT, positive = "Yes")
 cm_test_voted$byClass["F1"]
 ```
+
 As can be seen, the performance of the ensemble is lower than this of the best trained model and will not be further considered. 
 
 # 4 Conclusion
 
-In this project, we have trained and evaluated several machine learning models to predict mortality caused by heart failure based on patients' features. 
+In this project we have trained and evaluated several machine learning models to predict mortality caused by heart failure based on patients' features. 
 
 The data set was analyzed and evaluated in order to find important data relationships and to select meaningful predictors for the model training. The data was prepared for the training, whereas numeric predictors were scaled. F1-score was chosen to evaluate model performance due to the imbalanced nature of data. Different algorithms were used then to train the models and the best algorithm was identified.
 
-Radial Support Vector Machine (SVM Radial) showed the highest performance of all models in the 5-fold cross-validation (F1-score: 0.657) and in the final performance check on the test set (F1-score: 0.619). The model predicts death event only for 12 patients out of 19 actual positive outcomes (63%), what would be insufficient in the real world. The performance might be improved by using a larger training data set, 299 observations present indeed a modest data collection.
+Radial Support Vector Machine (SVM Radial) showed the highest performance of all models in the 5-fold cross-validation (F1-score: 0.657) and in the final performance check on the test set (F1-score: 0.619). The model predicts death event only for 12 patients out of 19 actual positive outcomes (63%), what would be insufficient in the real world. The performance might be improved by using a larger training data set, 299 observations indeed present a modest data collection.
 
-The other tried algorithms showed lower performance and some of them showed a strong overtraining. The attempts to improve the performance/to reduce overtraining were fruitless, though. The application of the ensemble learning approach also didn't result in any improvement.
+The other tried algorithms showed lower performance and some of them showed a strong overtraining. The attempts to improve the performance/to reduce overtraining were fruitless, though. The application of the ensemble learning approach also did not result in any improvement.
 
 ## 4.1 Limitations
 
@@ -738,4 +780,4 @@ As already mentioned, the small size of the available data set was the main limi
 
 ## 4.2 Outlook
 
-The selection of algorithms used to train the models was chosen to include simple as well as more sophisticated methods of different types. For the future work, a more accurate selection based on an extensive literature research can be performed. Algorithms better tailored for small data sets might help to improve the prediction.
+The selection of algorithms used to train the models was chosen to include simple as well as more sophisticated methods of different types. For future work, a more accurate selection based on extensive literature research can be performed. Algorithms better tailored for small data sets might help to improve the prediction.
